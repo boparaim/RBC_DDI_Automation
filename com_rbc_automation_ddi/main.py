@@ -9,12 +9,22 @@ import subprocess
 import threading
 import time
 import os
+import yaml
 
 # make sure system time is correct
 # make sure at and cron are installed and functioning properly
 
 # sudo yum install at atd && atd
 # check exists /var/run/atd.pid
+
+
+# might need to put selinux in permissive mode for cron to work
+# setenforce 0
+
+
+settings = yaml.safe_load(open('properties.yaml', 'r', encoding='utf-8'))
+print(yaml.dump(settings))
+print(settings)
 
 finalJson = {}
 
@@ -26,6 +36,7 @@ def at():
 
 # /etc/cron*
 # /var/spool/cron*
+# /var/log/cron
 def cron():
     #result = subprocess.check_output("echo 'test an input' | grep test", stderr=subprocess.STDOUT, shell=True)
     #print(result)
