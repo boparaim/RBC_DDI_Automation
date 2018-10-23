@@ -1,72 +1,160 @@
+import datetime
 import mysql.connector
 import subprocess
 import re
+import yaml
+import threading
+import time
 
-crontabFile = '/etc/crontab'
-username = 'boparaim'
-ansibleHome = '/home/boparaim/rbc-util/ansible/'
 
-# ctrl+shift+f1 to sync with remote
+# utility function to print a log message
+def log(tag, msg):
+    print(datetime.datetime.now(),' - ['+tag.upper()+'] >> '+msg)
+
+
+log('start', 'com_rbc_automation_ddi/cron_interface.py')
+
+# read properties file
+settings = yaml.safe_load(open('properties.yaml', 'r', encoding='utf-8'))
+#print(yaml.dump(settings), settings)
+
+crontabFile = settings['cron_interface']['crontab_file']
+username = settings['cron_interface']['cron_username']
+ansibleHome = settings['cron_interface']['ansible_directory']
+ansibleBinary = settings['cron_interface']['ansible_playbook_binary']
+ansibleVaultPasswordFile = settings['cron_interface']['ansible_vault_password_file']
+
+connection = None
+
 
 # remove previous entries
-#result = subprocess.check_output("sed -i -e 's/# RBC Utility//g' "+crontabFile, stderr=subprocess.STDOUT, shell=True)
-#print(result)
-result = subprocess.check_output("perl -pi -0 -e 's/\n\n# RBC Utility//g' "+crontabFile, stderr=subprocess.STDOUT, shell=True)
-print(result)
+def remove_previous_entries():
+    result = subprocess.check_output("perl -pi -0 -e 's/\n\n# RBC DDI Utility//g' "+crontabFile,
+                                     stderr=subprocess.STDOUT, shell=True)
+    #print(result)
 
-result = subprocess.check_output("perl -pi -0 -e 's/\n\n# RBC Cron Entry[\n\r]+.*//g' "+crontabFile, stderr=subprocess.STDOUT, shell=True)
-print(result)
-
-# add an empty line to crontab
-result = subprocess.check_output("echo '\n# RBC Utility' >> "+crontabFile, stderr=subprocess.STDOUT, shell=True)
-print(result)
+    result = subprocess.check_output("perl -pi -0 -e 's/\n\n# RBC DDI Cron Entry[\n\r]+.*//g' "+crontabFile,
+                                     stderr=subprocess.STDOUT, shell=True)
+    #print(result)
 
 
+# add title line to crontab
+def add_title_comment():
+    result = subprocess.check_output("echo '\n# RBC DDI Utility' >> "+crontabFile,
+                                     stderr=subprocess.STDOUT, shell=True)
+    #print(result)
 
-connection = mysql.connector.connect(user='root', password='empowered',
-                                  host='192.168.158.68', port='3306',
-                                  database='rbc_ddi_automation')
 
-cursor = connection.cursor()
+def add_cron_entries():
+    global connection
+    connection = mysql.connector.connect(
+                    user=settings['database']['username'],
+                    password=settings['database']['password'],
+                    host=settings['database']['host'],
+                    port=settings['database']['port'],
+                    database=settings['main']['source_schema'])
 
-query = ("SELECT * FROM cron_operation "
-         "WHERE operation REGEXP 'add_one-time'"
-         "ORDER BY time, host")
+    cursor = connection.cursor()
 
-cursor.execute(query, ())
+    get_cron_operations_query = ("SELECT DISTINCT host, time, operation, current, requested"
+                                 " FROM `{}`"
+                                 " WHERE operation REGEXP 'add_'"
+                                 " ORDER BY time, host").format(settings['cron_interface']['source_table'])
 
-for (id, host, time, operation, current, requested) in cursor:
-    print("***************\n")
-    print("[cron_operation {}] >> host = {}, time = {}, operation = {}, current = {}, requested = {}".format(
-        id, host, time, operation, current, requested))
+    cursor.execute(get_cron_operations_query, ())
 
-    rexpMatch = re.match(r"(\d+)-(\d+)-(\d+) (\d+):(\d+):(\d+)", str(time))
-    print('match', bool(rexpMatch))
-    if bool(rexpMatch) == True:
-        print(rexpMatch.group(0), rexpMatch.group(1))
+    for (host, time, operation, current, requested) in cursor:
+        log('cron_operation', '{} - time = {}, operation = {}, current = {}, requested = {}'
+            .format(id, host, time, operation, current, requested))
 
-        year = rexpMatch.group(1)
-        month = rexpMatch.group(2)
-        day = rexpMatch.group(3)
-        hour = rexpMatch.group(4)
-        minute = rexpMatch.group(5)
-        second = rexpMatch.group(6)
+        minute = hour = day_of_month = month = day_of_week = '*'
+        regexp_match_once = re.match(r"(\d+)-(\d+)-(\d+) (\d+):(\d+):(\d+)", str(time))
+        regexp_match_reoccurring = re.match(r"([*-/\d]+) ([*-/\d]+) ([*-/\d]+) ([*-/\d]+) ([*-/\d]+)", str(time))
+        print('match', bool(regexp_match_once), regexp_match_once)
+        print('match', bool(regexp_match_reoccurring), regexp_match_reoccurring)
 
-    result = subprocess.check_output("echo '\n# RBC Cron Entry' >> "+crontabFile, stderr=subprocess.STDOUT, shell=True)
-    print(result)
-    result = subprocess.check_output("echo '"+minute+" "+hour+" "+day+" "+month+" * "+username
-                                     +" cd "+ansibleHome+" &&"
-                                     +" ansible-playbook change-ipv4.yaml -i '"+host
-                                     +",' --extra-vars \"from="+current+" to="+requested+"\""
-                                     +"' >> "+crontabFile, stderr=subprocess.STDOUT, shell=True)
-    #ansible-playbook change-ipv4.yaml -i '192.168.78.132,' --extra-vars "from=192.168.78.132 to=192.168.78.134"
-    # ansible-playbook change-ipv4.yaml -i '192.168.78.132,' --extra-vars "from=192.168.78.132 to=192.168.78.134" --vault-password-file vaul-password.yaml
-    #ansible-playbook change-ipv4.yaml -i '192.168.78.132,' --extra-vars "from=192.168.78.132 to=192.168.78.134" --vault-password-file vaul-password.yaml --forks 5 --timeout 30
-    print(result)
+        playbook_name = ''
+        if bool(re.match(r"_(ipv4Change)$", operation)) is True:
+            playbook_name = 'ipv4'
+        elif bool(re.match(r"_(ipv6Change)$", operation)) is True:
+            playbook_name = 'ipv6'
+        elif bool(re.match(r"_(dnsChange)$", operation)) is True:
+            playbook_name = 'dns'
+        else:
+            log('operation', 'unsupported operation')
+            continue
 
-cursor.close()
+        if bool(regexp_match_once) is True:
+            month = regexp_match_once.group(2)
+            day_of_month = regexp_match_once.group(3)
+            hour = regexp_match_once.group(4)
+            minute = regexp_match_once.group(5)
 
-connection.close()
+        elif bool(regexp_match_reoccurring) is True:
+            minute = regexp_match_reoccurring.group(1)
+            hour = regexp_match_reoccurring.group(2)
+            day_of_month = regexp_match_reoccurring.group(3)
+            month = regexp_match_reoccurring.group(4)
+            day_of_week = regexp_match_reoccurring.group(5)
 
-print("[SYNC] end")
-print("\n-----------------------------------------\n")
+        else:
+            log('time', 'unsupported time format')
+            continue
+
+        result = subprocess.check_output("echo '\n# RBC Cron Entry' >> "+crontabFile,
+                                         stderr=subprocess.STDOUT, shell=True)
+        #print(result)
+
+        result = subprocess.check_output("echo '"+minute+" "+hour
+                                         +" "+day_of_month+" "+month+" "+day_of_week+" "+username
+                                         +" cd "+ansibleHome+" &&"
+                                         +" "+ansibleBinary
+                                         +" change-"+playbook_name+".yaml"
+                                         +" -i '"+host+",'"
+                                         +" --extra-vars \"from="+current+" to="+requested+"\""
+                                         +" --vault-password-file "+ansibleVaultPasswordFile
+                                         +" --forks 5"
+                                         +" --timeout 30"
+                                         +"' >> "+crontabFile, stderr=subprocess.STDOUT, shell=True)
+        #print(result)
+
+    cursor.close()
+
+
+# representing a db-poll cycle
+class Cycle(threading.Thread):
+    def __init__(self, interval):
+        threading.Thread.__init__(self)
+        self.interval = interval
+
+    def run(self):
+        log('poll_cycle', 'starting db polling')
+        while True:
+            print("-----------------------------------------")
+            log('sync', 'start')
+            global connection
+            connection = mysql.connector.connect(
+                user=settings['database']['username'],
+                password=settings['database']['password'],
+                host=settings['database']['host'],
+                port=settings['database']['port'],
+                database=settings['main']['source_schema'])
+            remove_previous_entries()
+            add_title_comment()
+            add_cron_entries()
+            connection.close()
+            log('sync', 'end')
+            print("-----------------------------------------\n")
+
+            time.sleep(60 * self.interval)
+
+
+# start the infinite loop
+syncCycle = Cycle(settings['main']['interval'])
+syncCycle.start()
+
+
+
+
+
+# ctrl+shift+f1 to sync with remote
