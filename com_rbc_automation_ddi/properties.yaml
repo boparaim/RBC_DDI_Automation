@@ -8,7 +8,7 @@ database:
 # settings used in main.py
 main:
   # interval at which to poll the db; minutes
-  interval: 5
+  interval: 0.5
   source_schema: rbc_ddi_automation
   source_table: ddi_change_request
   dest_table: cron_operation
@@ -16,10 +16,12 @@ main:
 # settings for cron_interface.py
 cron_interface:
 # interval at which to update the crontab; minutes
-  interval: 5
+  interval: 0.5
   crontab_file: /etc/crontab
   cron_username: boparaim
-  ansible_directory: ./ansible/
+  ansible_directory: /home/boparaim/rbc-util/com_rbc_automation_ddi/ansible/
+  main_playbook: ddi-operationss.yaml
   source_table: cron_operation
   ansible_playbook_binary: ansible-playbook
-  ansible_vault_password_file: vaul-password.yaml
+  ansible_vault_password_file: vault-password.yaml
+  log_file: /home/boparaim/rbc-util/com_rbc_automation_ddi/logs/ansible-playbooks.log

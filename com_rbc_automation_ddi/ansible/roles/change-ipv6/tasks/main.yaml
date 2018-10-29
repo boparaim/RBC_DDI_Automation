@@ -1,0 +1,7 @@
+- name: run for fedora based distributions - CentOS/RHEL
+  import_tasks: roles/change-ipv6/tasks/fedora.yaml
+  when: ansible_facts['os_family']|lower == 'redhat'
+
+- name: run for debian based distributions - Ubuntu
+  import_tasks: roles/change-ipv6/tasks/debian.yaml
+  when: ansible_facts['os_family']|lower == 'debian'

@@ -1,28 +1,32 @@
 import datetime
-import mysql.connector
-import subprocess
+import io
 import re
-import yaml
+import subprocess
 import threading
 import time
+
+import mysql.connector
+import yaml
 
 
 # utility function to print a log message
 def log(tag, msg):
-    print(datetime.datetime.now(),' - ['+tag.upper()+'] >> '+msg)
+    print(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")+' - ['+tag.upper()+'] >> '+msg)
 
 
 log('start', 'com_rbc_automation_ddi/cron_interface.py')
 
 # read properties file
-settings = yaml.safe_load(open('properties.yaml', 'r', encoding='utf-8'))
+settings = yaml.safe_load(io.open('properties.yaml', 'r', encoding='utf-8'))
 #print(yaml.dump(settings), settings)
 
 crontabFile = settings['cron_interface']['crontab_file']
 username = settings['cron_interface']['cron_username']
 ansibleHome = settings['cron_interface']['ansible_directory']
+ansiblePlaybook = settings['cron_interface']['main_playbook']
 ansibleBinary = settings['cron_interface']['ansible_playbook_binary']
 ansibleVaultPasswordFile = settings['cron_interface']['ansible_vault_password_file']
+logFileName = settings['cron_interface']['log_file']
 
 connection = None
 
@@ -65,24 +69,32 @@ def add_cron_entries():
 
     for (host, time, operation, current, requested) in cursor:
         log('cron_operation', '{} - time = {}, operation = {}, current = {}, requested = {}'
-            .format(id, host, time, operation, current, requested))
+            .format(host, time, operation, current, requested))
 
         minute = hour = day_of_month = month = day_of_week = '*'
-        regexp_match_once = re.match(r"(\d+)-(\d+)-(\d+) (\d+):(\d+):(\d+)", str(time))
-        regexp_match_reoccurring = re.match(r"([*-/\d]+) ([*-/\d]+) ([*-/\d]+) ([*-/\d]+) ([*-/\d]+)", str(time))
-        print('match', bool(regexp_match_once), regexp_match_once)
-        print('match', bool(regexp_match_reoccurring), regexp_match_reoccurring)
 
         playbook_name = ''
-        if bool(re.match(r"_(ipv4Change)$", operation)) is True:
-            playbook_name = 'ipv4'
-        elif bool(re.match(r"_(ipv6Change)$", operation)) is True:
-            playbook_name = 'ipv6'
-        elif bool(re.match(r"_(dnsChange)$", operation)) is True:
-            playbook_name = 'dns'
+        if re.match(r".*_ipv4Change$", operation):
+            playbook_name = 'change-ipv4'
+        elif bool(re.match(r".*_ipv6Change$", operation)) is True:
+            playbook_name = 'change-ipv6'
+        elif bool(re.match(r".*_dnsChange$", operation)) is True:
+            playbook_name = 'change-dns'
         else:
-            log('operation', 'unsupported operation')
+            log('operation', 'unsupported operation ' + operation)
             continue
+
+        if re.match(r".*_end_.*", operation):
+            if playbook_name == 'change-ipv4' or playbook_name == 'change-ipv6':
+                host = requested
+            temp = current
+            current = requested
+            requested = temp
+
+        regexp_match_once = re.match(r"(\d+)-(\d+)-(\d+) (\d+):(\d+):(\d+)", str(time))
+        regexp_match_reoccurring = re.match(r"([*-/\d]+) ([*-/\d]+) ([*-/\d]+) ([*-/\d]+) ([*-/\d]+)", str(time))
+        #print('match', bool(regexp_match_once), regexp_match_once)
+        #print('match', bool(regexp_match_reoccurring), regexp_match_reoccurring)
 
         if bool(regexp_match_once) is True:
             month = regexp_match_once.group(2)
@@ -101,7 +113,7 @@ def add_cron_entries():
             log('time', 'unsupported time format')
             continue
 
-        result = subprocess.check_output("echo '\n# RBC Cron Entry' >> "+crontabFile,
+        result = subprocess.check_output("echo '\n# RBC DDI Cron Entry' >> "+crontabFile,
                                          stderr=subprocess.STDOUT, shell=True)
         #print(result)
 
@@ -109,12 +121,13 @@ def add_cron_entries():
                                          +" "+day_of_month+" "+month+" "+day_of_week+" "+username
                                          +" cd "+ansibleHome+" &&"
                                          +" "+ansibleBinary
-                                         +" change-"+playbook_name+".yaml"
-                                         +" -i '"+host+",'"
-                                         +" --extra-vars \"from="+current+" to="+requested+"\""
+                                         +" "+ansiblePlaybook
+                                         +" -i \'"+host+",\'"
+                                         +" --extra-vars \"operation="+playbook_name
+                                         +" from="+current+" to="+requested+"\""
                                          +" --vault-password-file "+ansibleVaultPasswordFile
                                          +" --forks 5"
-                                         +" --timeout 30"
+                                         +" --timeout 30 >> "+logFileName+" 2>&1"
                                          +"' >> "+crontabFile, stderr=subprocess.STDOUT, shell=True)
         #print(result)
 
@@ -158,3 +171,8 @@ syncCycle.start()
 
 
 # ctrl+shift+f1 to sync with remote
+# ansible-vault create password.yaml
+# sudo python cron_interface.py >> logs/cron_interface.log &
+
+# test results on server:
+# while :; do echo $(date); ip a | grep 192; sleep 60; done

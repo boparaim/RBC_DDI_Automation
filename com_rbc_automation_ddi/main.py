@@ -1,4 +1,5 @@
 import datetime
+import io
 import json
 import sys
 import threading
@@ -12,13 +13,13 @@ import yaml
 
 # utility function to print a log message
 def log(tag, msg):
-    print(datetime.datetime.now(),' - ['+tag.upper()+'] >> '+msg)
+    print(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")+' - ['+tag.upper()+'] >> '+msg)
 
 
 log('start', 'com_rbc_automation_ddi/main.py')
 
 # read properties file
-settings = yaml.safe_load(open('properties.yaml', 'r', encoding='utf-8'))
+settings = yaml.safe_load(io.open('properties.yaml', 'r', encoding='utf-8'))
 #print(yaml.dump(settings), settings)
 
 # global object, used to store the de-duplicated operations
@@ -251,3 +252,6 @@ syncCycle.start()
 # protobuf	3.6.1	3.6.1
 # setuptools	39.1.0	40.4.3
 # six	1.11.0	1.11.0
+
+
+# sudo python main.py >> logs/main.log &

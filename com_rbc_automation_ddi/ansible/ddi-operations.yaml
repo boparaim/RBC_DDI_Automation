@@ -1,0 +1,30 @@
+# little bit of logging
+- hosts: 127.0.0.1
+  connection: local
+  gather_facts: no
+
+  tasks:
+    - name: print time
+      shell: date
+      register: local_time
+
+    - debug: var=local_time.stdout
+
+# actual play
+- hosts: all
+  remote_user: "boparaim"
+  vars:
+    ansible_become: yes
+    ansible_become_user: "{{ sudo_user }}"
+    ansible_become_pass: "{{ sudo_user_password }}"
+  vars_files:
+    - variables.yaml
+
+  tasks:
+#    - debug: var=hostvars[inventory_hostname]['operation']
+#    - debug: var=ansible_facts['os_family']|lower
+#    - debug: var=operation
+  roles:
+    - { role: change-ipv4, when: operation == 'change-ipv4' }
+    - { role: change-ipv6, when: operation == 'change-ipv6' }
+    - { role: change-dns, when: operation == 'change-dns' }

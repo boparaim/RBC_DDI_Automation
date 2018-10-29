@@ -1,0 +1,31 @@
+- name: debian replace dns address in configuration file and apply the changes
+  become: yes
+  async: 60
+  poll: 0
+  environment:
+    PATH: "{{ hostvars[inventory_hostname]['ansible_facts']['env']['PATH'] }}:/bin:/usr/sbin"
+  args:
+    executable: /bin/bash
+  shell: >
+    for file in $(ls /etc/netplan/* | grep -P '\.ya?ml$');
+    do
+      sed -i 's/{{from}}$/{{to}}/g' $file;
+    done && sleep 1 && netplan apply
+  register: netplan_file_names
+
+- name: wait for the network interface to come back up
+  local_action:
+    module: wait_for
+    host: "{{ ansible_ssh_host }}"
+    port: 22
+    delay: 10
+    state: started
+  register: wait_result
+
+- name: refresh network facts
+  setup:
+    gather_subset: network
+
+- name: display network facts
+  debug:
+    var: hostvars[inventory_hostname]['ansible_facts']['dns']
