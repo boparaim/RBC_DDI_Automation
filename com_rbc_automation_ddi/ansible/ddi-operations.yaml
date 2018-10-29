@@ -12,7 +12,7 @@
 
 # actual play
 - hosts: all
-  remote_user: "boparaim"
+  #remote_user: "boparaim"
   vars:
     ansible_become: yes
     ansible_become_user: "{{ sudo_user }}"
