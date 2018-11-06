@@ -1,3 +1,13 @@
+#/**
+# * @author Manvinder Boparai
+# * @version 01 Nov 2018
+# * @filename change-dns/tasks/debian.yaml
+# *
+# * Ansible playbook for updating DNS for debian/fedora based hosts.
+# *
+# * Copyright 2018 Empowered Networks Inc.
+# */
+
 - name: run for fedora based distributions - CentOS/RHEL
   import_tasks: roles/change-dns/tasks/fedora.yaml
   when: ansible_facts['os_family']|lower == 'redhat'

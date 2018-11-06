@@ -1,9 +1,18 @@
 #! /bin/bash
 
-# run as sudo
-# restarts the main and cron scripts
-# main parses data and stores in cron table
-# cron parses cron table and creates crontab
+#/**
+# * @author Manvinder Boparai
+# * @version 01 Nov 2018
+# * @filename start.sh
+# *
+# * run as sudo
+# * restarts the main and cron scripts
+# * main parses data and stores in cron table
+# * cron_interface parses cron table and creates crontab entries
+# *
+# * Copyright 2018 Empowered Networks Inc.
+# */
+
 
 PYTHON_BINARY='/usr/bin/python'
 MAIN_SCRIPT='main.py'

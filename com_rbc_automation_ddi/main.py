@@ -1,3 +1,13 @@
+# /**
+#  * @author Manvinder Boparai
+#  * @version 01 Nov 2018
+#  * @filename main.py
+#  *
+#  * Validates the user input and stores it in the second table.
+#  *
+#  * Copyright 2018 Empowered Networks Inc.
+#  */
+
 import datetime
 import io
 import json

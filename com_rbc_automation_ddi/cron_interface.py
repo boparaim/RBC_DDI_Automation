@@ -1,3 +1,13 @@
+# /**
+#  * @author Manvinder Boparai
+#  * @version 01 Nov 2018
+#  * @filename cron_interface.py
+#  *
+#  * Updates the crontab based on the entries in second table.
+#  *
+#  * Copyright 2018 Empowered Networks Inc.
+#  */
+
 import datetime
 import io
 import re

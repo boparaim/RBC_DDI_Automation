@@ -1,3 +1,13 @@
+#/**
+# * @author Manvinder Boparai
+# * @version 01 Nov 2018
+# * @filename change-dns/tasks/debian.yaml
+# *
+# * Ansible playbook for updating DNS for debian based hosts.
+# *
+# * Copyright 2018 Empowered Networks Inc.
+# */
+
 - name: debian replace dns address in configuration file and apply the changes
   become: yes
   async: 60

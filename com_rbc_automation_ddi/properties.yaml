@@ -1,7 +1,17 @@
+#/**
+# * @author Manvinder Boparai
+# * @version 01 Nov 2018
+# * @filename properties.yaml
+# *
+# * Configuration file.
+# *
+# * Copyright 2018 Empowered Networks Inc.
+# */
+
 # database connection configuration
 database:
   username: root
-  password: empowered
+  password: root_password
   host: 192.168.158.68
   port: 3306
 
